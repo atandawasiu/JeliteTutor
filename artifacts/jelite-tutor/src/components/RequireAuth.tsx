@@ -9,7 +9,7 @@ export function RequireAuth({ children, requireAdmin = false }: { children: Reac
 
   useEffect(() => {
     if (!loading && !user) navigate({ to: "/login" });
-    else if (!loading && requireAdmin && !isAdmin) navigate({ to: "/dashboard" });
+    else if (!loading && requireAdmin && !isAdmin) return;
   }, [user, loading, isAdmin, requireAdmin, navigate]);
 
   if (loading) {
@@ -25,8 +25,8 @@ export function RequireAuth({ children, requireAdmin = false }: { children: Reac
     return (
       <div className="flex min-h-[60vh] items-center justify-center px-4">
         <div className="max-w-md rounded-2xl border border-border bg-card p-8 text-center shadow-sm">
-          <h1 className="font-display text-xl font-bold">Admin access required</h1>
-          <p className="mt-2 text-sm text-muted-foreground">Sign in with an authorized Jelite Tutor administrator account to continue.</p>
+          <h1 className="font-display text-xl font-bold">{user ? "Administrator access required" : "Sign in required"}</h1>
+          <p className="mt-2 text-sm text-muted-foreground">{user ? "Your account is signed in, but it is not authorized for the Jelite Tutor Admin Dashboard." : "Sign in with an authorized Jelite Tutor administrator account to continue."}</p>
         </div>
       </div>
     );

@@ -1043,12 +1043,9 @@ function UsersManager() {
   const [filterPlan, setFilterPlan] = useState("all");
 
   const reload = async () => {
-    const [{ data: profiles }, { data: roles }] = await Promise.all([
-      supabase.from("profiles").select("id, full_name, email, plan, created_at, whatsapp, country").order("created_at", { ascending: false }),
-      supabase.from("user_roles").select("user_id, role").eq("role", "admin"),
-    ]);
+    const { data: profiles } = await supabase.from("profiles").select("id, full_name, email, plan, created_at, whatsapp, country").order("created_at", { ascending: false });
     setUsers((profiles ?? []) as never);
-    setAdminIds(new Set((roles ?? []).map((r) => r.user_id)));
+    setAdminIds(currentUser ? new Set([currentUser.id]) : new Set());
     if (profiles && profiles.length > 0) {
       const { data: attempts } = await supabase.from("attempts").select("user_id").in("user_id", profiles.map(p => p.id));
       const counts: Record<string, number> = {};
@@ -1058,28 +1055,11 @@ function UsersManager() {
   };
   useEffect(() => { reload(); }, []);
   useRealtime("profiles", reload);
-  useRealtime("user_roles", reload);
 
   const togglePremium = async (id: string, current: string) => {
     const next = current === "premium" ? "free" : "premium";
     const { error } = await supabase.from("profiles").update({ plan: next as "free" | "premium" }).eq("id", id);
     if (error) toast.error(error.message); else toast.success(`Plan set to ${next}`);
-  };
-
-  const toggleAdmin = async (id: string, isAdmin: boolean) => {
-    if (id === currentUser?.id && isAdmin) {
-      toast.error("You cannot remove your own admin access");
-      return;
-    }
-
-    if (isAdmin) {
-      if (!confirm("Remove admin access for this user?")) return;
-      const { error } = await supabase.from("user_roles").delete().eq("user_id", id).eq("role", "admin");
-      if (error) toast.error(error.message); else { toast.success("Admin access removed"); await reload(); }
-    } else {
-      const { error } = await supabase.from("user_roles").insert({ user_id: id, role: "admin" });
-      if (error) toast.error(error.message); else { toast.success("User promoted to admin"); await reload(); }
-    }
   };
 
   const filtered = users.filter((u) => {
@@ -1093,6 +1073,7 @@ function UsersManager() {
     <div className="mt-4 rounded-2xl border border-border bg-card p-5">
       <div className="mb-4 flex flex-wrap items-center gap-3">
         <h3 className="font-display font-semibold">All Users ({filtered.length}/{users.length})</h3>
+        <p className="w-full text-xs text-muted-foreground">Administrator access is controlled securely by Supabase Auth <code>app_metadata.role</code>. Manage it from a trusted server-side Supabase workflow; it is never changed from the browser.</p>
         <Input placeholder="Search by name, email or ID..." value={search} onChange={(e) => setSearch(e.target.value)} className="flex-1 max-w-xs" />
         <Select value={filterPlan} onValueChange={setFilterPlan}>
           <SelectTrigger className="h-9 w-32"><SelectValue /></SelectTrigger>
@@ -1128,9 +1109,7 @@ function UsersManager() {
                   <Button size="sm" variant="outline" onClick={() => togglePremium(u.id, u.plan)} className="text-xs h-7">
                     {u.plan === "premium" ? "Downgrade" : "Upgrade"}
                   </Button>
-                  <Button size="sm" variant={isAdmin ? "destructive" : "default"} onClick={() => toggleAdmin(u.id, isAdmin)} disabled={u.id === currentUser?.id && isAdmin} className="gap-1 text-xs h-7">
-                    {isAdmin ? <><ShieldOff className="h-3 w-3" /> {u.id === currentUser?.id ? "You" : "Revoke"}</> : <><Shield className="h-3 w-3" /> Admin</>}
-                  </Button>
+                  {isAdmin && <span className="inline-flex items-center gap-1 rounded-md border border-primary/20 bg-primary/5 px-2 py-1 text-[10px] font-medium text-primary"><Shield className="h-3 w-3" /> App metadata admin</span>}
                 </div>
               </div>
             </div>
