@@ -52,11 +52,8 @@ function LoginPage() {
     let isAdmin = false;
     let isOnboarded = false;
     if (user) {
-      const [{ data: roles }, { data: account }] = await Promise.all([
-        supabase.from("user_roles").select("role").eq("user_id", user.id),
-        supabase.from("profiles").select("onboarded").eq("id", user.id).maybeSingle(),
-      ]);
-      isAdmin = (roles ?? []).some((r) => r.role === "admin");
+      const { data: account } = await supabase.from("profiles").select("onboarded").eq("id", user.id).maybeSingle();
+      isAdmin = user.app_metadata?.role === "admin";
       isOnboarded = account?.onboarded ?? false;
     }
     setLoading(false);

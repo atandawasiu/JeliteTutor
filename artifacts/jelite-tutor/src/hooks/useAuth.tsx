@@ -17,6 +17,7 @@ type AuthContextType = {
   signInWithGoogle: () => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
   refresh: () => Promise<void>;
+  refreshSession: () => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -28,13 +29,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [roles, setRoles] = useState<Role[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const loadUserData = async (uid: string) => {
+  const loadUserData = async (uid: string, authUser: User | null = user) => {
     const [{ data: prof }, { data: r }] = await Promise.all([
       supabase.from("profiles").select("*").eq("id", uid).maybeSingle(),
       supabase.from("user_roles").select("role").eq("user_id", uid),
     ]);
     setProfile(prof as Profile | null);
-    setRoles((r ?? []).map((x: { role: Role }) => x.role));
+    const metadataRole = uid === authUser?.id ? authUser.app_metadata?.role : null;
+    const databaseRoles = (r ?? []).map((x: { role: Role }) => x.role);
+    setRoles(metadataRole === "admin" ? ["admin", ...databaseRoles.filter((role) => role !== "admin")] : databaseRoles.filter((role) => role !== "admin"));
   };
 
   useEffect(() => {
@@ -44,7 +47,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(sess?.user ?? null);
       if (sess?.user) {
         // Defer Supabase calls to avoid deadlock
-        setTimeout(() => loadUserData(sess.user.id), 0);
+        setTimeout(() => loadUserData(sess.user.id, sess.user), 0);
       } else {
         setProfile(null);
         setRoles([]);
@@ -55,7 +58,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     supabase.auth.getSession().then(({ data: { session: sess } }) => {
       setSession(sess);
       setUser(sess?.user ?? null);
-      if (sess?.user) loadUserData(sess.user.id);
+      if (sess?.user) loadUserData(sess.user.id, sess.user);
       setLoading(false);
     });
 
@@ -90,10 +93,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setRoles([]);
   };
 
-  const refresh = async () => { if (user) await loadUserData(user.id); };
+  const refreshSession = async () => {
+    const { data } = await supabase.auth.refreshSession();
+    setSession(data.session);
+    setUser(data.session?.user ?? null);
+    if (data.session?.user) await loadUserData(data.session.user.id);
+  };
+
+  const refresh = async () => {
+    await refreshSession();
+  };
 
   return (
-    <AuthContext.Provider value={{ user, session, profile, roles, isAdmin: roles.includes("admin"), loading, signUp, signIn, signInWithGoogle, signOut, refresh }}>
+    <AuthContext.Provider value={{ user, session, profile, roles, isAdmin: user?.app_metadata?.role === "admin", loading, signUp, signIn, signInWithGoogle, signOut, refresh, refreshSession }}>
       {children}
     </AuthContext.Provider>
   );
