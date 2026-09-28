@@ -52,7 +52,7 @@ export function NotificationBell() {
 
   const markAllRead = async () => {
     if (!user || unread === 0) return;
-    await supabase.from("notifications").update({ read_at: new Date().toISOString() }).eq("user_id", user.id).is("read_at", null);
+    await supabase.from("notifications").update({ read: true }).eq("user_id", user.id).eq("read", false);
   };
 
   if (!user) return null;
@@ -93,13 +93,7 @@ export function NotificationBell() {
                   <p className="mt-1 text-[10px] text-muted-foreground">{new Date(n.created_at).toLocaleString()}</p>
                 </div>
               );
-              return n.link ? (
-                <Link key={n.id} to={n.link as never} className="block">
-                  {inner}
-                </Link>
-              ) : (
-                <div key={n.id}>{inner}</div>
-              );
+              return <div key={n.id}>{inner}</div>;
             })
           )}
         </div>
