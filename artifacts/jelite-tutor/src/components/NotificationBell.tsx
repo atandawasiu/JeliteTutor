@@ -52,7 +52,7 @@ export function NotificationBell() {
 
   const markAllRead = async () => {
     if (!user || unread === 0) return;
-    await supabase.from("notifications").update({ read: true }).eq("user_id", user.id).eq("read", false);
+    await supabase.from("notifications").update({ read_at: new Date().toISOString() }).eq("user_id", user.id).is("read_at", null);
   };
 
   if (!user) return null;

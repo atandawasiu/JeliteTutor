@@ -32,7 +32,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const loadUserData = async (uid: string, authUser: User | null = user) => {
     const [{ data: prof }, { data: r }] = await Promise.all([
       supabase.from("profiles").select("*").eq("id", uid).maybeSingle(),
-      supabase.from("user_roles").select("role").eq("user_id", uid),
+      Promise.resolve({ data: [] as { role: Role }[] }),
     ]);
     setProfile(prof as Profile | null);
     const metadataRole = uid === authUser?.id ? authUser.app_metadata?.role : null;
