@@ -41,6 +41,7 @@ function AdminPanel() {
   const [stats, setStats] = useState({ users: 0, exams: 0, questions: 0, attempts: 0, posts: 0, schools: 0, subscribers: 0 });
   const [statsLoading, setStatsLoading] = useState(true);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const [databaseError, setDatabaseError] = useState<string | null>(null);
 
   const reload = async () => {
     setStatsLoading(true);
@@ -54,6 +55,8 @@ function AdminPanel() {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (supabase.from("newsletter_subscribers") as any).select("*", { count: "exact", head: true }),
     ]);
+    const failed = [u, e, q, a, p, s, n].find(result => result.error);
+    setDatabaseError(failed?.error?.message ?? null);
     setStats({
       users: u.count ?? 0, exams: e.count ?? 0, questions: q.count ?? 0,
       attempts: a.count ?? 0, posts: p.count ?? 0, schools: s.count ?? 0,
@@ -90,6 +93,15 @@ function AdminPanel() {
           </span>
         </div>
       </div>
+
+      {databaseError && (
+        <div className="mb-5 rounded-xl border border-destructive/30 bg-destructive/5 p-4 text-sm">
+          <p className="font-semibold text-destructive">Database read failed</p>
+          <p className="mt-1 text-muted-foreground">The dashboard was showing zeros because Supabase returned an error instead of a count.</p>
+          <code className="mt-2 block overflow-x-auto rounded bg-background p-2 text-xs">{databaseError}</code>
+          <Button variant="outline" size="sm" className="mt-3" onClick={reload}>Retry database connection</Button>
+        </div>
+      )}
 
       <div className="mb-8 grid gap-3 grid-cols-2 sm:grid-cols-4 lg:grid-cols-7">
         {[
