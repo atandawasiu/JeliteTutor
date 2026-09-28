@@ -93,13 +93,7 @@ export function NotificationBell() {
                   <p className="mt-1 text-[10px] text-muted-foreground">{new Date(n.created_at).toLocaleString()}</p>
                 </div>
               );
-              return n.link ? (
-                <Link key={n.id} to={n.link as never} className="block">
-                  {inner}
-                </Link>
-              ) : (
-                <div key={n.id}>{inner}</div>
-              );
+              return <div key={n.id}>{inner}</div>;
             })
           )}
         </div>
