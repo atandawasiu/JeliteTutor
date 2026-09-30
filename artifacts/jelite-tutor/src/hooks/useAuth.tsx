@@ -66,7 +66,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const signUp = async (email: string, password: string, fullName: string) => {
-    const redirectUrl = `${window.location.origin}/`;
+    const redirectUrl = import.meta.env.VITE_SUPABASE_REDIRECT_URL ?? `${window.location.origin}/`;
     const { error } = await supabase.auth.signUp({
       email, password,
       options: { emailRedirectTo: redirectUrl, data: { full_name: fullName } },
@@ -82,7 +82,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signInWithGoogle = async () => {
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
-      options: { redirectTo: `${window.location.origin}/` },
+      options: { redirectTo: import.meta.env.VITE_SUPABASE_REDIRECT_URL ?? `${window.location.origin}/` },
     });
     return { error };
   };
