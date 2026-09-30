@@ -42,6 +42,7 @@ function AdminPanel() {
   const [statsLoading, setStatsLoading] = useState(true);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [databaseError, setDatabaseError] = useState<string | null>(null);
+  const [recentActivity, setRecentActivity] = useState<Array<{ id: string; event_type: string; metadata: Record<string, unknown>; created_at: string }>>([]);
 
   const reload = async () => {
     setStatsLoading(true);
@@ -57,6 +58,11 @@ function AdminPanel() {
     ]);
     const failed = [u, e, q, a, p, s, n].find(result => result.error);
     setDatabaseError(failed?.error?.message ?? null);
+    const { data: activity } = await (supabase.from("user_activity") as any)
+      .select("id,event_type,metadata,created_at")
+      .order("created_at", { ascending: false })
+      .limit(12);
+    setRecentActivity((activity ?? []) as typeof recentActivity);
     setStats({
       users: u.count ?? 0, exams: e.count ?? 0, questions: q.count ?? 0,
       attempts: a.count ?? 0, posts: p.count ?? 0, schools: s.count ?? 0,
@@ -72,7 +78,9 @@ function AdminPanel() {
   useRealtime("attempts", reload);
   useRealtime("blog_posts", reload);
   useRealtime("schools", reload);
-
+  useRealtime("newsletter_subscribers", reload);
+  useRealtime("user_activity", reload);
+  
   return (
     <div className="mx-auto max-w-7xl p-4 sm:p-6 lg:p-8">
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
@@ -120,6 +128,28 @@ function AdminPanel() {
           </div>
         ))}
       </div>
+
+      <section className="mb-8 rounded-2xl border border-border bg-card p-5" aria-labelledby="recent-activity-heading">
+        <div className="mb-4 flex items-center justify-between gap-3">
+          <div>
+            <h2 id="recent-activity-heading" className="font-display text-lg font-semibold">Recent user activity</h2>
+            <p className="text-sm text-muted-foreground">Registrations and actions appear here as users use the platform.</p>
+          </div>
+          <Activity className="h-5 w-5 text-primary" aria-hidden="true" />
+        </div>
+        {recentActivity.length === 0 ? (
+          <p className="rounded-lg bg-muted/50 p-4 text-sm text-muted-foreground">No activity recorded yet.</p>
+        ) : (
+          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+            {recentActivity.map(item => (
+              <div key={item.id} className="rounded-lg border border-border/70 p-3">
+                <p className="text-sm font-medium">{item.event_type.replaceAll("_", " ")}</p>
+                <p className="mt-1 text-xs text-muted-foreground">{new Date(item.created_at).toLocaleString()}</p>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
 
       <Tabs defaultValue="questions">
         <TabsList className="flex h-auto w-full flex-nowrap justify-start gap-1 overflow-x-auto p-1 lg:flex-wrap">
@@ -1318,15 +1348,22 @@ function SiteMenuManager() {
 
 /* ---------- NEWSLETTER ---------- */
 function NewsletterManager() {
-  const [subs, setSubs] = useState<{ id: string; email: string; user_id: string | null; created_at: string }[]>([]);
+  const [subs, setSubs] = useState<{ id: string; email: string; user_id: string | null; created_at: string; full_name?: string | null }[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
 
   const reload = async () => {
     setLoading(true);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data } = await (supabase.from("newsletter_subscribers") as any).select("id, email, user_id, created_at").order("created_at", { ascending: false });
-    setSubs((data ?? []) as { id: string; email: string; user_id: string | null; created_at: string }[]);
+  const { data } = await (supabase.from("newsletter_subscribers") as any).select("id, email, user_id, created_at").order("created_at", { ascending: false });
+  const rows = (data ?? []) as { id: string; email: string; user_id: string | null; created_at: string; full_name?: string | null }[];
+  const userIds = rows.map(row => row.user_id).filter(Boolean) as string[];
+  if (userIds.length) {
+    const { data: profiles } = await supabase.from("profiles").select("id, full_name").in("id", userIds);
+    const names = new Map((profiles ?? []).map(profile => [profile.id, profile.full_name]));
+    rows.forEach(row => { row.full_name = row.user_id ? names.get(row.user_id) ?? null : null; });
+  }
+  setSubs(rows);
     setLoading(false);
   };
   useEffect(() => { reload(); }, []);
@@ -1365,9 +1402,10 @@ function NewsletterManager() {
           {filtered.map(s => (
             <div key={s.id} className="flex items-center justify-between rounded-lg bg-secondary px-3 py-2">
               <div className="min-w-0">
-                <p className="text-sm font-medium">{s.email}</p>
-                <p className="text-xs text-muted-foreground">
-                  {s.user_id ? `User: ${s.user_id.slice(0, 12)}…` : "No user account"} · {new Date(s.created_at).toLocaleDateString()}
+  <p className="text-sm font-medium">{s.full_name || "Newsletter subscriber"}</p>
+  <p className="text-xs text-muted-foreground">{s.email}</p>
+  <p className="text-xs text-muted-foreground">
+  {s.user_id ? "Registered account" : "No user account"} · {new Date(s.created_at).toLocaleDateString()}
                 </p>
               </div>
               <Button size="icon" variant="ghost" onClick={() => remove(s.id)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
