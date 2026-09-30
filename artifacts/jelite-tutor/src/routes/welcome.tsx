@@ -107,14 +107,20 @@ function WelcomePage() {
                   { icon: BookOpen, title: "Real exam questions", desc: "JAMB, WAEC, IELTS, SAT and more" },
                   { icon: Target, title: "Smart progress", desc: "See your weak areas instantly" },
                   { icon: Sparkles, title: "Personalised", desc: "Tailored to your goals & schedule" },
-                ].map((c) => (
-                  <div key={c.title} className="rounded-2xl border border-border bg-card p-5">
+                ].map((c, i) => (
+                  <motion.div
+                    key={c.title}
+                    initial={{ opacity: 0, y: 12 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: i * 0.08, duration: 0.3 }}
+                    className="rounded-2xl border border-border bg-card p-5 shadow-sm"
+                  >
                     <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
                       <c.icon className="h-5 w-5" />
                     </div>
                     <p className="mt-3 font-display font-semibold text-foreground">{c.title}</p>
                     <p className="mt-1 text-xs text-muted-foreground">{c.desc}</p>
-                  </div>
+                  </motion.div>
                 ))}
               </div>
             )}

@@ -158,6 +158,36 @@
   --sidebar-ring: oklch(0.68 0.22 150);
 }
 
+@keyframes page-enter {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .page-shell {
+    animation: page-enter 420ms cubic-bezier(.22, 1, .36, 1) both;
+  }
+
+  .page-shell a,
+  .page-shell button {
+    transition: transform 180ms ease, box-shadow 180ms ease, background-color 180ms ease, border-color 180ms ease;
+  }
+
+  .page-shell button:hover:not(:disabled),
+  .page-shell a:hover {
+    transform: translateY(-1px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
 @layer base {
   * {
     border-color: var(--color-border);
@@ -186,6 +216,19 @@
 
   h1, h2, h3, h4, h5, h6 {
     font-family: var(--font-display);
+    color: var(--color-foreground);
+  }
+
+  .dark .text-gray-900,
+  .dark .text-slate-900,
+  .dark .text-zinc-900,
+  .dark .text-black {
+    color: var(--color-foreground) !important;
+  }
+
+  .dark input::placeholder,
+  .dark textarea::placeholder {
+    color: var(--color-muted-foreground);
   }
 }
 
