@@ -5,7 +5,7 @@ export async function recordActivity(eventType: string, metadata: Record<string,
   if (!user) return;
 
   // The activity table is intentionally best-effort so analytics never blocks a user action.
-  await (supabase.from("user_activity") as any).insert({
+  await (supabase.from as any)("user_activity").insert({
     user_id: user.id,
     event_type: eventType,
     metadata,

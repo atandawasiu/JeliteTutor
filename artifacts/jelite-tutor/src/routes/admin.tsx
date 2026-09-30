@@ -58,7 +58,7 @@ function AdminPanel() {
     ]);
     const failed = [u, e, q, a, p, s, n].find(result => result.error);
     setDatabaseError(failed?.error?.message ?? null);
-    const { data: activity } = await (supabase.from("user_activity") as any)
+    const { data: activity } = await (supabase.from as any)("user_activity")
       .select("id,event_type,metadata,created_at")
       .order("created_at", { ascending: false })
       .limit(12);
