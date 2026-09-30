@@ -57,7 +57,7 @@ function RootComponent() {
       <AuthProvider>
         {!isCBT && <SiteAnnouncementBanner />}
         {!isCBT && <Header />}
-        <main>
+        <main className="page-shell">
           <Outlet />
         </main>
         {!isCBT && <Footer />}
