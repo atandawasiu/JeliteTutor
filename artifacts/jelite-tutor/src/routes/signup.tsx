@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
+import { recordActivity } from "@/lib/activity";
 import { toast } from "sonner";
 import jeliteTutorLogo from "@/assets/jelite-tutor-logo.png";
 
@@ -59,8 +60,8 @@ function SignupPage() {
     if (password.length < 8) { toast.error("Password must be at least 8 characters"); return; }
     if (password !== confirm) { toast.error("Passwords do not match"); return; }
     setLoading(true);
-    const { error } = await signUp(email, password, name);
-    if (error) {
+  const { error } = await signUp(email, password, name);
+  if (error) {
       setLoading(false);
       toast.error(error.message.includes("already") ? "An account with this email already exists. Please log in." : error.message);
       return;
@@ -68,8 +69,9 @@ function SignupPage() {
     try {
       await new Promise(r => setTimeout(r, 500));
       const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        await supabase.from("profiles").update({
+  if (user) {
+  await recordActivity("account_created", { country, targetCourse });
+  await supabase.from("profiles").update({
           whatsapp: whatsapp || null,
           country,
           target_course: targetCourse || null,
