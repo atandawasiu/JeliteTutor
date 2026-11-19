@@ -50,11 +50,16 @@ const TEXT_SECTIONS: { title: string; fields: { key: string; label: string; long
 
 export function SiteSettingsManager() {
   const [settings, setSettings] = useState<Settings | null>(null);
+  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   const load = async () => {
-    const { data } = await supabase.from("site_settings").select("*").limit(1).maybeSingle();
-    if (data) setSettings(data as Settings);
+    setLoading(true);
+    const { data, error } = await supabase.from("site_settings").select("*").limit(1).maybeSingle();
+    if (error) setLoadError(error.message);
+    else if (data) { setSettings(data as Settings); setLoadError(null); }
+    setLoading(false);
   };
 
   useEffect(() => {
@@ -67,16 +72,23 @@ export function SiteSettingsManager() {
   }, []);
 
   const save = async () => {
-    if (!settings?.id) return;
+    if (!settings) return;
     setSaving(true);
     const { id, ...rest } = settings;
-    const { error } = await supabase.from("site_settings").update(rest as never).eq("id", id as string);
+    const query = id
+      ? supabase.from("site_settings").update(rest as never).eq("id", id as string)
+      : supabase.from("site_settings").insert(rest as never);
+    const { error } = await query;
     setSaving(false);
     if (error) toast.error(error.message); else toast.success("Site settings saved — live on the website now");
   };
 
-  if (!settings) {
+  if (loading) {
     return <div className="flex justify-center py-12"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>;
+  }
+
+  if (!settings) {
+    return <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-5 text-sm text-destructive">Unable to load site settings. {loadError ?? "Please try again."}<Button variant="outline" size="sm" className="ml-3" onClick={load}>Retry</Button></div>;
   }
 
   return (

@@ -1,12 +1,21 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Headphones, Pause, Play, Volume2, VolumeX } from "lucide-react";
+import { Headphones, Pause, Play, Volume2, VolumeX, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
-const NOTE_FREQUENCIES = [261.63, 329.63, 392, 523.25];
+const SUBJECTS = {
+  General: [261.63, 329.63, 392, 523.25],
+  Mathematics: [220, 277.18, 329.63, 440],
+  English: [293.66, 349.23, 440, 587.33],
+  Science: [246.94, 311.13, 369.99, 493.88],
+  "Social Studies": [196, 246.94, 293.66, 392],
+} as const;
+
+type Subject = keyof typeof SUBJECTS;
 
 export function SoundBox() {
   const [playing, setPlaying] = useState(false);
   const [muted, setMuted] = useState(false);
+  const [subject, setSubject] = useState<Subject>("General");
   const audioContextRef = useRef<AudioContext | null>(null);
   const timerRef = useRef<number | null>(null);
 
@@ -24,7 +33,7 @@ export function SoundBox() {
     audioContextRef.current = context;
     void context.resume();
     const start = context.currentTime;
-    NOTE_FREQUENCIES.forEach((frequency, index) => {
+    SUBJECTS[subject].forEach((frequency, index) => {
       const oscillator = context.createOscillator();
       const gain = context.createGain();
       const when = start + index * 0.18;
@@ -39,7 +48,7 @@ export function SoundBox() {
     });
     setPlaying(true);
     timerRef.current = window.setTimeout(() => setPlaying(false), 900);
-  }, [muted]);
+  }, [muted, subject]);
 
   useEffect(() => () => {
     if (timerRef.current !== null) window.clearTimeout(timerRef.current);
@@ -47,32 +56,19 @@ export function SoundBox() {
   }, []);
 
   return (
-    <aside className="fixed bottom-4 right-4 z-50 w-[min(18rem,calc(100vw-2rem))] rounded-2xl border border-primary/20 bg-card/95 p-3 shadow-xl backdrop-blur" aria-label="Jelite Tutor sound box">
+    <aside className="fixed bottom-4 right-4 z-50 w-[min(19rem,calc(100vw-2rem))] rounded-2xl border border-primary/20 bg-card/95 p-3 shadow-xl backdrop-blur" aria-label="Jelite Tutor AI study sound box">
       <div className="flex items-center gap-3">
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
-          <Headphones className="h-5 w-5" aria-hidden="true" />
-        </div>
-        <div className="min-w-0 flex-1">
-          <p className="text-sm font-semibold">Study sound box</p>
-          <p className="truncate text-xs text-muted-foreground">Tap to preview a focus chime</p>
-        </div>
-        <Button type="button" size="icon" variant="outline" onClick={playing ? stop : playStudyTone} aria-label={playing ? "Stop study sound" : "Play study sound"}>
-          {playing ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
-        </Button>
+        <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary"><Headphones className="size-5" aria-hidden="true" /></div>
+        <div className="min-w-0 flex-1"><p className="flex items-center gap-1 text-sm font-semibold"><Sparkles className="size-3.5 text-primary" aria-hidden="true" /> Study sound box</p><p className="truncate text-xs text-muted-foreground">Adaptive focus chime for your subject</p></div>
+        <Button type="button" size="icon" variant="outline" onClick={playing ? stop : playStudyTone} aria-label={playing ? "Stop study sound" : "Play study sound"}>{playing ? <Pause /> : <Play />}</Button>
       </div>
-      <div className="mt-2 flex items-center justify-between text-xs text-muted-foreground">
-        <span>{playing ? "Playing" : "Ready to preview"}</span>
-        <button type="button" className="inline-flex items-center gap-1 rounded-md px-1.5 py-1 hover:bg-muted" onClick={() => setMuted(value => !value)} aria-label={muted ? "Unmute sound box" : "Mute sound box"}>
-          {muted ? <VolumeX className="h-3.5 w-3.5" /> : <Volume2 className="h-3.5 w-3.5" />}
-          {muted ? "Muted" : "Sound on"}
-        </button>
-      </div>
+      <label className="mt-3 block text-xs font-medium text-muted-foreground" htmlFor="sound-subject">Selected subject</label>
+      <select id="sound-subject" className="mt-1 w-full rounded-lg border border-input bg-background px-2 py-1.5 text-sm text-foreground" value={subject} onChange={(event) => setSubject(event.target.value as Subject)}>
+        {Object.keys(SUBJECTS).map((name) => <option key={name}>{name}</option>)}
+      </select>
+      <div className="mt-2 flex items-center justify-between text-xs text-muted-foreground"><span>{playing ? "Playing" : "Ready to preview"}</span><button type="button" className="inline-flex items-center gap-1 rounded-md px-1.5 py-1 hover:bg-muted" onClick={() => setMuted(value => !value)} aria-label={muted ? "Unmute sound box" : "Mute sound box"}>{muted ? <VolumeX /> : <Volume2 />}{muted ? "Muted" : "Sound on"}</button></div>
     </aside>
   );
 }
 
-declare global {
-  interface Window {
-    webkitAudioContext?: typeof AudioContext;
-  }
-}
+declare global { interface Window { webkitAudioContext?: typeof AudioContext; } }
