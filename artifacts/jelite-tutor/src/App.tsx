@@ -3,6 +3,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { routeTree } from "./routeTree.gen";
 import { AuthProvider } from "./hooks/useAuth";
 import { SoundBox } from "./components/SoundBox";
+import { Analytics } from "@vercel/analytics/react";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -31,6 +32,7 @@ function App() {
       <AuthProvider>
         <RouterProvider router={router} />
         <SoundBox />
+        <Analytics />
       </AuthProvider>
     </QueryClientProvider>
   );
