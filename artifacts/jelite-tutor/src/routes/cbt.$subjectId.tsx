@@ -32,6 +32,15 @@ type SetupConfig = {
   difficulty: Difficulty | "all";
 };
 
+function shuffleQuestions<T>(items: T[]) {
+  const shuffled = [...items];
+  for (let index = shuffled.length - 1; index > 0; index -= 1) {
+    const swapIndex = Math.floor(Math.random() * (index + 1));
+    [shuffled[index], shuffled[swapIndex]] = [shuffled[swapIndex], shuffled[index]];
+  }
+  return shuffled;
+}
+
 export const Route = createFileRoute("/cbt/$subjectId")({
   component: () => <RequireAuth><CBTEngine /></RequireAuth>,
 });
@@ -53,6 +62,8 @@ function CBTEngine() {
   const [questions, setQuestions] = useState<Question[]>([]);
   const [availableYears, setAvailableYears] = useState<number[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [loadAttempt, setLoadAttempt] = useState(0);
   const [config, setConfig] = useState<SetupConfig>({ year: "all", count: 40, mode: "exam", difficulty: "all" });
 
   const [phase, setPhase] = useState<"setup" | "active" | "result">("setup");
@@ -67,6 +78,7 @@ function CBTEngine() {
   const [result, setResult] = useState<{ score: number; correct: number; total: number; timeTaken: number } | null>(null);
   const [showPanel, setShowPanel] = useState(true);
   const autoSubmitRef = useRef(false);
+  const submitLockRef = useRef(false);
 
   const [explainCtx, setExplainCtx] = useState<{ question: string; options: string[]; correctAnswer: string; userAnswer?: string } | undefined>();
   const [explainSignal, setExplainSignal] = useState(0);
@@ -80,33 +92,74 @@ function CBTEngine() {
   const startTimeRef = useRef<number>(0);
   const storageKey = `cbt_${subjectId}_${user?.id}`;
 
-  // Load subject + all questions
   useEffect(() => {
-    (async () => {
-      const [{ data: subj }, { data: qs }] = await Promise.all([
-        supabase.from("subjects").select("id, name, exam_id, exams(id, name, duration_minutes)").eq("id", subjectId).single(),
-        supabase.from("questions").select("id, question, options, correct_answer, explanation, year, difficulty, topic").eq("subject_id", subjectId).limit(500),
-      ]);
-      setSubject(subj as unknown as Subject);
-      const mapped = (qs ?? []).map(q => ({ ...q, options: q.options as string[] })) as Question[];
-      setAllQuestions(mapped);
-      const years = [...new Set(mapped.map(q => q.year).filter(Boolean) as number[])].sort((a, b) => b - a);
-      setAvailableYears(years);
-      setLoading(false);
+    let cancelled = false;
+    setLoading(true);
+    setLoadError(null);
+
+    void (async () => {
+      try {
+        const [subjectResult, questionResult] = await Promise.all([
+          supabase.from("subjects").select("id, name, exam_id, exams(id, name, duration_minutes)").eq("id", subjectId).single(),
+          supabase.from("questions").select("id, question, options, correct_answer, explanation, year, difficulty, topic").eq("subject_id", subjectId).limit(500),
+        ]);
+        if (subjectResult.error || questionResult.error || !subjectResult.data) {
+          throw new Error("Unable to load this subject and its questions.");
+        }
+
+        const mapped = (questionResult.data ?? []).map(q => ({ ...q, options: q.options as string[] })) as Question[];
+        const years = [...new Set(mapped.map(q => q.year).filter(Boolean) as number[])].sort((a, b) => b - a);
+        if (!cancelled) {
+          setSubject(subjectResult.data as unknown as Subject);
+          setAllQuestions(mapped);
+          setAvailableYears(years);
+        }
+      } catch {
+        if (!cancelled) setLoadError("We couldn't load this subject right now. Check your connection and try again.");
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
     })();
-  }, [subjectId]);
+
+    return () => { cancelled = true; };
+  }, [subjectId, loadAttempt]);
+
+  useEffect(() => {
+    if (!user || allQuestions.length === 0) {
+      setBookmarked(new Set());
+      return;
+    }
+
+    let cancelled = false;
+    void supabase
+      .from("bookmarks")
+      .select("question_id")
+      .eq("user_id", user.id)
+      .in("question_id", allQuestions.map(question => question.id))
+      .then(({ data, error }) => {
+        if (cancelled) return;
+        if (error) {
+          toast.error("Saved bookmarks couldn't be loaded.");
+          return;
+        }
+        setBookmarked(new Set((data ?? []).map(bookmark => bookmark.question_id)));
+      });
+
+    return () => { cancelled = true; };
+  }, [allQuestions, user]);
 
   const startExam = () => {
     let pool = [...allQuestions];
     if (config.year !== "all") pool = pool.filter(q => q.year === config.year);
     if (config.difficulty !== "all") pool = pool.filter(q => q.difficulty === config.difficulty);
     if (pool.length === 0) { toast.error("No questions match your filters. Try different settings."); return; }
-    const shuffled = pool.sort(() => Math.random() - 0.5).slice(0, config.count);
+    const shuffled = shuffleQuestions(pool).slice(0, config.count);
     setQuestions(shuffled);
     const dur = (subject?.exams?.duration_minutes ?? 30) * 60;
     setTimeLeft(dur);
     startTimeRef.current = Date.now();
     autoSubmitRef.current = false;
+    submitLockRef.current = false;
     setAnswers({});
     setFlagged(new Set());
     setRevealed(new Set());
@@ -148,10 +201,20 @@ function CBTEngine() {
   };
   const toggleBookmark = async (qid: string) => {
     if (!user) return;
-    const n = new Set(bookmarked);
-    if (n.has(qid)) { n.delete(qid); await supabase.from("bookmarks").delete().eq("user_id", user.id).eq("question_id", qid); }
-    else { n.add(qid); await supabase.from("bookmarks").insert({ user_id: user.id, question_id: qid }); }
-    setBookmarked(n);
+    const isBookmarked = bookmarked.has(qid);
+    const { error } = isBookmarked
+      ? await supabase.from("bookmarks").delete().eq("user_id", user.id).eq("question_id", qid)
+      : await supabase.from("bookmarks").insert({ user_id: user.id, question_id: qid });
+    if (error) {
+      toast.error("Bookmark couldn't be updated. Please try again.");
+      return;
+    }
+    setBookmarked(current => {
+      const next = new Set(current);
+      if (isBookmarked) next.delete(qid);
+      else next.add(qid);
+      return next;
+    });
   };
 
   const solveWithWolfram = async (qid: string, question: string) => {
@@ -171,28 +234,48 @@ function CBTEngine() {
   };
 
   const submitExam = async (auto = false) => {
-    if (submitting || phase === "result" || !user || !subject) return;
+    if (submitLockRef.current || submitting || phase === "result" || !user || !subject) return;
+    submitLockRef.current = true;
     setSubmitting(true);
     const correctCount = questions.reduce((acc, q) => acc + (answers[q.id] === q.correct_answer ? 1 : 0), 0);
     const score = questions.length > 0 ? Math.round((correctCount / questions.length) * 100) : 0;
     const timeTaken = Math.round((Date.now() - startTimeRef.current) / 1000);
+    let attemptSaved = false;
 
-    const { data: attempt } = await supabase
-      .from("attempts")
-      .insert({ user_id: user.id, exam_id: subject.exam_id, subject_id: subject.id, score, correct_count: correctCount, total_questions: questions.length, time_taken_seconds: timeTaken, completed: true })
-      .select().single();
+    try {
+      const { data: attempt, error: attemptError } = await supabase
+        .from("attempts")
+        .insert({ user_id: user.id, exam_id: subject.exam_id, subject_id: subject.id, score, correct_count: correctCount, total_questions: questions.length, time_taken_seconds: timeTaken, completed: true })
+        .select().single();
 
-    if (attempt) {
-      await supabase.from("attempt_answers").insert(
-        questions.map(q => ({ attempt_id: attempt.id, question_id: q.id, selected_answer: answers[q.id] ?? null, is_correct: answers[q.id] === q.correct_answer }))
-      );
+      if (attemptError || !attempt) {
+        toast.error("Your result couldn't be saved. Please try again.");
+        return;
+      }
+      attemptSaved = true;
+
+      let answerDetailsSaved = true;
+      try {
+        const { error: answersError } = await supabase.from("attempt_answers").insert(
+          questions.map(q => ({ attempt_id: attempt.id, question_id: q.id, selected_answer: answers[q.id] ?? null, is_correct: answers[q.id] === q.correct_answer }))
+        );
+        answerDetailsSaved = !answersError;
+      } catch {
+        answerDetailsSaved = false;
+      }
+
+      localStorage.removeItem(storageKey);
+      setResult({ score, correct: correctCount, total: questions.length, timeTaken });
+      setPhase("result");
+      if (!answerDetailsSaved) toast.warning("Your score was saved, but some answer details couldn't be saved.");
+      if (auto) toast.warning("Time's up! Test auto-submitted.");
+      else if (answerDetailsSaved) toast.success(`Test submitted — ${score}%`);
+    } catch {
+      toast.error("Your result couldn't be saved. Please try again.");
+    } finally {
+      setSubmitting(false);
+      if (!attemptSaved) submitLockRef.current = false;
     }
-    localStorage.removeItem(storageKey);
-    setResult({ score, correct: correctCount, total: questions.length, timeTaken });
-    setPhase("result");
-    setSubmitting(false);
-    if (auto) toast.warning("Time's up! Test auto-submitted.");
-    else toast.success(`Test submitted — ${score}%`);
   };
 
   const minutes = Math.floor(timeLeft / 60);
@@ -200,7 +283,20 @@ function CBTEngine() {
   const answered = Object.keys(answers).length;
   const isWarning = timeLeft > 0 && timeLeft < 120;
 
-  if (loading) return <div className="flex min-h-[60vh] items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
+  if (loading) return <div className="flex min-h-[60vh] items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-primary" aria-label="Loading subject" /></div>;
+
+  if (loadError || !subject) {
+    return (
+      <div className="mx-auto flex min-h-[60vh] max-w-lg flex-col items-center justify-center px-4 text-center">
+        <h1 className="font-display text-xl font-semibold">Subject unavailable</h1>
+        <p className="mt-2 text-sm text-muted-foreground">{loadError ?? "This subject could not be found."}</p>
+        <div className="mt-5 flex gap-3">
+          <Button variant="outline" onClick={() => navigate({ to: "/exams" })}>Back to exams</Button>
+          <Button onClick={() => setLoadAttempt(value => value + 1)}>Try again</Button>
+        </div>
+      </div>
+    );
+  }
 
   // ── SETUP SCREEN ────────────────────────────────────────────────────────────
   if (phase === "setup") {
