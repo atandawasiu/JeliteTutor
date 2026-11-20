@@ -215,6 +215,7 @@ function CBTEngine() {
       else next.add(qid);
       return next;
     });
+    toast.success(isBookmarked ? "Bookmark removed" : "Question bookmarked");
   };
 
   const solveWithWolfram = async (qid: string, question: string) => {

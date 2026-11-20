@@ -149,11 +149,11 @@ function ThreadPage() {
       toast.error("Log in to like");
       return;
     }
-    if (thread.liked_by_me) {
-      await supabase.from("forum_likes").delete().eq("user_id", user.id).eq("thread_id", thread.id);
-    } else {
-      await supabase.from("forum_likes").insert({ user_id: user.id, thread_id: thread.id });
-    }
+    const { error } = thread.liked_by_me
+      ? await supabase.from("forum_likes").delete().eq("user_id", user.id).eq("thread_id", thread.id)
+      : await supabase.from("forum_likes").insert({ user_id: user.id, thread_id: thread.id });
+    if (error) toast.error("Your like couldn't be updated. Please try again.");
+    else toast.success(thread.liked_by_me ? "Like removed" : "Discussion liked");
   };
 
   const deleteThread = async () => {
@@ -170,15 +170,22 @@ function ThreadPage() {
   const deleteReply = async (id: string) => {
     const { error } = await supabase.from("forum_replies").delete().eq("id", id);
     if (error) toast.error(error.message);
+    else toast.success("Reply deleted");
   };
 
   const toggleLock = async () => {
     if (!thread) return;
-    await supabase.from("forum_threads").update({ locked: !thread.locked }).eq("id", thread.id);
+    const nextLocked = !thread.locked;
+    const { error } = await supabase.from("forum_threads").update({ locked: nextLocked }).eq("id", thread.id);
+    if (error) toast.error(error.message);
+    else toast.success(nextLocked ? "Thread locked" : "Thread unlocked");
   };
   const togglePin = async () => {
     if (!thread) return;
-    await supabase.from("forum_threads").update({ pinned: !thread.pinned }).eq("id", thread.id);
+    const nextPinned = !thread.pinned;
+    const { error } = await supabase.from("forum_threads").update({ pinned: nextPinned }).eq("id", thread.id);
+    if (error) toast.error(error.message);
+    else toast.success(nextPinned ? "Thread pinned" : "Thread unpinned");
   };
 
   if (loading) return <div className="flex min-h-[50vh] items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;

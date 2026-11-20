@@ -104,8 +104,10 @@ export function ContentBlocksManager() {
   };
 
   const toggleVisible = async (b: ContentBlock) => {
-    const { error } = await supabase.from("content_blocks").update({ visible: !b.visible }).eq("id", b.id);
+    const visible = !b.visible;
+    const { error } = await supabase.from("content_blocks").update({ visible }).eq("id", b.id);
     if (error) toast.error(error.message);
+    else toast.success(visible ? "Content block published" : "Content block hidden");
   };
 
   const move = async (b: ContentBlock, dir: number) => {
@@ -113,10 +115,13 @@ export function ContentBlocksManager() {
     const idx = peers.findIndex(p => p.id === b.id);
     const swap = peers[idx + dir];
     if (!swap) return;
-    await Promise.all([
+    const results = await Promise.all([
       supabase.from("content_blocks").update({ sort_order: swap.sort_order }).eq("id", b.id),
       supabase.from("content_blocks").update({ sort_order: b.sort_order }).eq("id", swap.id),
     ]);
+    const error = results.find(result => result.error)?.error;
+    if (error) toast.error(error.message);
+    else toast.success("Content block order updated");
   };
 
   const filtered = blocks.filter(b =>

@@ -198,11 +198,11 @@ function CommunityPage() {
   const toggleLike = async (e: React.MouseEvent, t: Thread) => {
     e.preventDefault(); e.stopPropagation();
     if (!user) { toast.error("Log in to like"); return; }
-    if (t.liked_by_me) {
-      await supabase.from("forum_likes").delete().eq("user_id", user.id).eq("thread_id", t.id);
-    } else {
-      await supabase.from("forum_likes").insert({ user_id: user.id, thread_id: t.id });
-    }
+    const { error } = t.liked_by_me
+      ? await supabase.from("forum_likes").delete().eq("user_id", user.id).eq("thread_id", t.id)
+      : await supabase.from("forum_likes").insert({ user_id: user.id, thread_id: t.id });
+    if (error) toast.error("Your like couldn't be updated. Please try again.");
+    else toast.success(t.liked_by_me ? "Like removed" : "Discussion liked");
   };
 
   const submitWaGroup = async () => {

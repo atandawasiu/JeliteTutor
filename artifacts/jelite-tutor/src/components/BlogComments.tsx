@@ -61,6 +61,7 @@ export function BlogComments({ postId }: { postId: string }) {
   const remove = async (id: string) => {
     const { error } = await supabase.from("blog_comments").delete().eq("id", id);
     if (error) toast.error(error.message);
+    else toast.success("Comment deleted");
   };
 
   return (

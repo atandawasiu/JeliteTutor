@@ -54,10 +54,13 @@ export function FooterLinksManager() {
     const idx = siblings.findIndex((s) => s.id === id);
     const swap = siblings[idx + dir];
     if (!swap) return;
-    await Promise.all([
+    const results = await Promise.all([
       supabase.from("footer_links").update({ sort_order: swap.sort_order }).eq("id", id),
       supabase.from("footer_links").update({ sort_order: item.sort_order }).eq("id", swap.id),
     ]);
+    const error = results.find(result => result.error)?.error;
+    if (error) toast.error(error.message);
+    else toast.success("Footer link order updated");
   };
 
   const grouped = new Map<string, FL[]>();

@@ -2,7 +2,6 @@ import { RouterProvider, createRouter } from "@tanstack/react-router";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { routeTree } from "./routeTree.gen";
 import { AuthProvider } from "./hooks/useAuth";
-import { SoundBox } from "./components/SoundBox";
 import { Analytics } from "@vercel/analytics/react";
 
 const queryClient = new QueryClient({
@@ -31,7 +30,6 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
         <RouterProvider router={router} />
-        <SoundBox />
         <Analytics />
       </AuthProvider>
     </QueryClientProvider>
