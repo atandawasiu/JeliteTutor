@@ -105,14 +105,18 @@ function PracticeBuilder() {
   const toggleBookmark = async (qid: string) => {
     if (!user) return;
     const next = new Set(bookmarked);
-    if (next.has(qid)) {
-      next.delete(qid);
-      await supabase.from("bookmarks").delete().eq("user_id", user.id).eq("question_id", qid);
-    } else {
-      next.add(qid);
-      await supabase.from("bookmarks").insert({ user_id: user.id, question_id: qid });
+    const isBookmarked = next.has(qid);
+    const { error } = isBookmarked
+      ? await supabase.from("bookmarks").delete().eq("user_id", user.id).eq("question_id", qid)
+      : await supabase.from("bookmarks").insert({ user_id: user.id, question_id: qid });
+    if (error) {
+      toast.error("Bookmark couldn't be updated. Please try again.");
+      return;
     }
+    if (isBookmarked) next.delete(qid);
+    else next.add(qid);
     setBookmarked(next);
+    toast.success(isBookmarked ? "Bookmark removed" : "Question bookmarked");
   };
 
   const handleSubmit = async (auto = false) => {
@@ -147,16 +151,18 @@ function PracticeBuilder() {
         return;
       }
       if (att) {
-        await supabase.from("attempt_answers").insert(sQs.map(q => ({
+        const { error: answersError } = await supabase.from("attempt_answers").insert(sQs.map(q => ({
           attempt_id: att.id, question_id: q.id,
           selected_answer: answers[q.id] ?? null,
           is_correct: answers[q.id] === q.correct_answer,
         })));
+        if (answersError) toast.warning("Your score was saved, but some answer details couldn't be saved.");
       }
     }
     setResult({ score, correct, total: qs.length, questions: qs });
     setSubmitting(false);
     if (auto) toast.warning("Time's up — auto-submitted");
+    else toast.success(`Practice submitted — ${score}%`);
   };
 
   const askExplain = (q: Question) => {

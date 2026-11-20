@@ -97,18 +97,23 @@ export function AnnouncementsManagerFull() {
   };
 
   const toggle = async (a: Announcement) => {
-    const { error } = await supabase.from("announcements").update({ active: !a.active }).eq("id", a.id);
+    const active = !a.active;
+    const { error } = await supabase.from("announcements").update({ active }).eq("id", a.id);
     if (error) toast.error(error.message);
+    else toast.success(active ? "Announcement activated" : "Announcement paused");
   };
 
   const move = async (a: Announcement, dir: number) => {
     const idx = items.findIndex(i => i.id === a.id);
     const swap = items[idx + dir];
     if (!swap) return;
-    await Promise.all([
+    const results = await Promise.all([
       supabase.from("announcements").update({ sort_order: swap.sort_order }).eq("id", a.id),
       supabase.from("announcements").update({ sort_order: a.sort_order }).eq("id", swap.id),
     ]);
+    const error = results.find(result => result.error)?.error;
+    if (error) toast.error(error.message);
+    else toast.success("Announcement order updated");
   };
 
   const isExpired = (a: Announcement) => a.expires_at && new Date(a.expires_at).getTime() < Date.now();

@@ -1206,10 +1206,13 @@ function SiteMenuManager() {
     const idx = sections.findIndex(s => s.id === id);
     const swapIdx = idx + dir;
     if (swapIdx < 0 || swapIdx >= sections.length) return;
-    await Promise.all([
+    const results = await Promise.all([
       supabase.from("site_menu_sections").update({ sort_order: sections[swapIdx].sort_order }).eq("id", id),
       supabase.from("site_menu_sections").update({ sort_order: sections[idx].sort_order }).eq("id", sections[swapIdx].id),
     ]);
+    const error = results.find(result => result.error)?.error;
+    if (error) toast.error(error.message);
+    else toast.success("Menu section order updated");
   };
 
   // Link CRUD
